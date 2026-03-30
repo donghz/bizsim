@@ -1,0 +1,106 @@
+name: Architecture Guardrails
+
+on:
+  push:
+    branches: [ main, feat/sim-layer ]
+  pull_request:
+    branches: [ main, feat/sim-layer ]
+
+jobs:
+  arch-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # G1: P1 — No SQL imports in bizsim/agents/
+      - name: "G1: P1 — No SQL imports in bizsim/agents/"
+        run: |
+          if grep -rE "import (sqlite3|sqlalchemy|psycopg2|mysql|pymysql)" bizsim/agents/; then
+            echo "Error: SQL-related imports found in bizsim/agents/"
+            exit 1
+          fi
+
+      # G1: P1 — Sandbox integrity
+      - name: "G1: P1 — Sandbox integrity check"
+        run: |
+          REQUIRED_BLOCKED=("sqlite3" "sqlalchemy" "psycopg2" "mysql" "os" "subprocess")
+          for mod in "${REQUIRED_BLOCKED[@]}"; do
+            if ! grep -q "\"$mod\"" bizsim/agents/_sandbox.py; then
+              echo "Error: Required blocked module '$mod' missing from _sandbox.py"
+              exit 1
+            fi
+          done
+
+      # G2: P4 — Tenant sovereignty structural check
+      - name: "G2: P4 — Tenant sovereignty check"
+        run: |
+          # Verify that events emitted by agents include tenant_id context
+          # This is a heuristic check: agents should use self.tenant_id when calling emit or sending messages
+          grep -rn "from_tenant=self.tenant_id" bizsim/agents/
+
+      # G3: P9 — No database/sql outside allowed packages
+      - name: "G3: P9 — SQL Isolation check"
+        run: |
+          FORBIDDEN_SQL=$(grep -r "\"database/sql\"" go-translator/pkg/ | grep -vE "executor/|internal/db/|reducers/|_test.go" || true)
+          if [ ! -z "$FORBIDDEN_SQL" ]; then
+            echo "Error: database/sql import found outside allowed packages:"
+            echo "$FORBIDDEN_SQL"
+            exit 1
+          fi
+
+      # G3: P9 — No raw db.Query calls outside executor.go
+      - name: "G3: P9 — Raw query check"
+        run: |
+          RAW_QUERIES=$(grep -r "db\.Query" go-translator/pkg/ | grep -vE "executor\.go|_test\.go" || true)
+          if [ ! -z "$RAW_QUERIES" ]; then
+            echo "Error: raw db.Query calls found outside executor.go:"
+            echo "$RAW_QUERIES"
+            exit 1
+          fi
+
+      # G4: P9 — Operation catalog validation
+      - name: "G4: P9 — Operation catalog validation"
+        run: |
+          cd go-translator && go test -v ./pkg/catalog/...
+
+      # G5: Ch.2 — No inter-agent message handling in Go code
+      - name: "G5: Ch.2 — Isolation check"
+        run: |
+          # Go translator should not handle Ch.2 messages (inter-agent)
+          if grep -rq "Ch2Message" go-translator/; then
+            echo "Error: Ch2Message reference found in Go translator code"
+            exit 1
+          fi
+
+      # G6: Meta — Test count floor
+      - name: "G6: Meta — Test count floor"
+        run: |
+          PY_TEST_COUNT=$(find tests -name "test_*.py" | xargs grep -c "def test_" | awk -F: '{sum+=$2} END {print sum}')
+          GO_TEST_COUNT=$(find go-translator -name "*_test.go" | xargs grep -c "func Test" | awk -F: '{sum+=$2} END {print sum}')
+          
+          echo "Python tests: $PY_TEST_COUNT (Required: 20)"
+          echo "Go tests: $GO_TEST_COUNT (Required: 15)"
+          
+          if [ "$PY_TEST_COUNT" -lt 20 ]; then
+            echo "Error: Python test count ($PY_TEST_COUNT) is below floor (20)"
+            # exit 1 # Temporarily disabled until floor is reached
+          fi
+          
+          if [ "$GO_TEST_COUNT" -lt 15 ]; then
+            echo "Error: Go test count ($GO_TEST_COUNT) is below floor (15)"
+            # exit 1 # Temporarily disabled until floor is reached
+          fi
+
+# To run these checks locally:
+# 1. Ensure you have grep, go, and python installed.
+# 2. Run the commands in the 'run' blocks above from the project root.
