@@ -17,6 +17,66 @@ BizSim simulates a complete economic ecosystem — consumers, sellers, suppliers
 
 ## Architecture
 
+### BizSim Unit World
+
+A single BizSim "unit world" is one self-contained economic ecosystem. Five subsystems interact within the simulation framework, with only Ch.1 and Ch.3 events crossing the translator boundary into the database:
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                          BIZSIM UNIT WORLD                                    │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │                    SIMULATION FRAMEWORK                                 │  │
+│  │                    (TickEngine, event routing, scheduling)              │  │
+│  │                                                                         │  │
+│  │  ┌───────────────┐  ┌───────────────────┐  ┌───────────────────────┐    │  │
+│  │  │   MARKETS     │  │      AGENTS       │  │       SOCIETY         │    │  │
+│  │  │               │  │                   │  │                       │    │  │
+│  │  │  Consumer Mkt ├─►│  Consumer         │◄─┤  Social Network       │    │  │
+│  │  │  (B2C)        ├─►│  Seller           │◄─┤  (peer-to-peer        │    │  │
+│  │  │               ├─►│  Supplier         │  │   influence)          │    │  │
+│  │  │  Industrial   │  │  Transport        │  │                       │    │  │
+│  │  │  Mkt (B2B)  ◄─┼──┤  Government       │  │  Media (V2)           │    │  │
+│  │  │               │  │                   │  │  (broadcast           │    │  │
+│  │  │  (prices,     │  │  (decisions via   │  │   influence)          │    │  │
+│  │  │   supply/     │  │   Ch.2 messages)  │  │                       │    │  │
+│  │  │   demand)     │  │                   │  │  (trend propagation,  │    │  │
+│  │  │               │  │                   │  │   network diffusion)  │    │  │
+│  │  └───────────────┘  └─────────┬─────────┘  └───────────────────────┘    │  │
+│  │                               │ Ch.1 Action Events + Ch.3 Queries       │  │
+│  └───────────────────────────────┼─────────────────────────────────────────┘  │
+│                                  │                                            │
+│                                  ▼                                            │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │                     TRANSLATOR                                          │  │
+│  │          (YAML operation catalog, SQL execution,                        │  │
+│  │           result reduction, tenant routing)                             │  │
+│  └──────────────────────────────┬──────────────────────────────────────────┘  │
+│                                 │ SQL                                         │
+│                                 ▼                                             │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │                           TiDB                                          │  │
+│  └─────────────────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Tenant Mapping
+
+Each entity group maps to a distinct DB tenant type, producing naturally diverse access patterns:
+
+| Entity Group | DB Tenant Type | Access Pattern | Key Tables |
+|---|---|---|---|
+| Marketplace | Shared-schema | Mixed read/write | products, categories |
+| Individual Store | Per-store schema/DB | Inventory hotspot | store_orders, inventory, catalog |
+| Supply Chain | Per-supplier-group | Batch updates | suppliers, supply_chain_edges |
+| Consumer App | Community platform | High-write social | consumer_orders, consumer_profiles |
+| Social Network | Social graph | Graph traversal | community_posts, influence_edges |
+| Transport | Logistics provider | Append-heavy | shipments, tracking_events |
+| Government | Analytics | Read-heavy agg | gov_records, statistics |
+| Payments | Financial ledger | Strict transactional | transactions (double-entry) |
+
+### Channel Architecture
+
 The simulation and database are separated by a bidirectional domain boundary — the Workload Translator. Agents never see SQL, rows, or schema. TiDB never sees agent logic.
 
 ```

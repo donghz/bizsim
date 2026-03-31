@@ -52,12 +52,42 @@ BizSim is a tick-based multi-agent market simulator with an event-driven archite
 - `mypy --strict bizsim/`: Run strict type checking.
 - `ruff check bizsim/ tests/`: Run linting and style checks.
 
+## Five Subsystems and Dependency Rules
+BizSim is composed of five subsystems. Understanding their boundaries prevents accidental coupling.
+
+| Subsystem | Location | Owns |
+|---|---|---|
+| **Simulation Framework** | `bizsim/engine.py`, `domain.py`, `events.py`, `channels.py` | Tick loop, event routing, core types |
+| **Agents** | `bizsim/agents/` | Agent lifecycle, decisions, sandbox |
+| **Markets** | `bizsim/markets/` + `bizsim/market.py` (facade) | Product catalogs, pricing, supply chain topology |
+| **Society** | `bizsim/society/` + `bizsim/social.py` (facade) | Social graph, influence propagation |
+| **Translator** | `go-translator/` | SQL generation, tenant routing, result reduction |
+
+**Dependency direction** (violations = architectural regression):
+- **Agents** → Framework ✓, Markets (read-only) ✓, Society (via engine, never direct) ✓
+- **Markets** → Framework only. Markets do NOT depend on Agents.
+- **Society** → Framework only. Society does NOT depend on Agents.
+- **Translator** → receives Ch.1 + Ch.3 only. Never receives Ch.2, market state, or society state.
+- **TickEngine** orchestrates all subsystems — it is the only place that calls into Agents, Markets, and Society in a single tick.
+
+**Why this matters**: Markets and Society are passive data/computation layers. If an agent needs market data, it reads via `MarketFactory` (injected by engine). If society needs purchase activations, the engine feeds them — agents never call `CommunitySubsystem` directly. This ensures subsystems can be tested, replaced, or scaled independently.
+
 ## Architectural Invariants (NEVER VIOLATE)
 - **P1**: No SQL/ORM imports in `bizsim/agents/`. Enforced by `_sandbox.py` and CI.
 - **P4**: `TenantContext` is immutable. `tenant_id` is baked into the `EventEmitter` and cannot be forged by agents.
 - **P9**: Only `go-translator/pkg/executor/` and `pkg/internal/db/` are permitted to touch `database/sql`.
 - **Community Subsystem**: This is not an agent; it is a simulation engine subsystem called during the tick loop.
 - **Channel 2 Isolation**: Inter-agent messages are in-memory only and must never cross the translator boundary or touch the DB.
+
+## Subsystem Interaction Constraints
+These constraints govern how subsystems communicate. They exist to maintain the domain boundary that makes BizSim's workload generation realistic.
+
+- **Markets are read-only to agents**: Agents query markets for intelligence (prices, SKUs, suppliers). Market state is mutated only by the government agent's statistics feedback loop during the tick's aggregation phase — never by individual transactions.
+- **Government is the only market writer**: Individual agent transactions don't update market conditions. The government computes aggregate statistics and feeds them back to the market subsystem, creating a realistic delayed-feedback economic loop.
+- **Society is engine-driven, not agent-driven**: Agents produce activation signals (e.g., `SharePurchaseData` after a purchase). The engine collects these and feeds them to `CommunitySubsystem.run_propagation()`. Agents never import or call society code directly.
+- **Translator sees only domain patterns**: The Go translator receives `ActionEvent` (Ch.1) and `QueryRequest` (Ch.3). It never sees `InterAgentMessage` (Ch.2), `MarketFactory`, or `CommunitySubsystem`. If a new feature requires translator changes, it must be expressed as a new YAML operation — not Go code changes.
+- **No cross-tenant transactions**: 1 logical purchase → multiple SQL statements across multiple tenants over multiple ticks. Each write targets exactly one tenant. Cross-tenant coordination happens via Ch.2 messages, never via DB transactions.
+- **Market staleness is intentional**: Market data is always slightly stale (government updates every N ticks). This mirrors real markets and prevents tight feedback loops that would produce unrealistic DB patterns.
 
 ## Adding a New Agent
 1. **Extend BaseAgent**: Create `bizsim/agents/{name}.py` and inherit from `BaseAgent`.

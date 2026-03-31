@@ -50,23 +50,24 @@ A single BizSim "unit world" is one self-contained economic ecosystem. The diagr
 │  │                    SIMULATION FRAMEWORK                                 │  │
 │  │                    (TickEngine, event routing, scheduling)              │  │
 │  │                                                                         │  │
-│  │  ┌───────────────┐  ┌───────────────┐  ┌────────────────────────────┐   │  │
-│  │  │   AGENTS      │  │   MARKETS     │  │       SOCIETY              │   │  │
-│  │  │               │  │               │  │                            │   │  │
-│  │  │  Consumer     │◄─┤  Consumer Mkt │  │  Social Network            │   │  │
-│  │  │  Seller       │◄─┤  (B2C)        │  │  (peer-to-peer influence)  │   │  │
-│  │  │  Supplier     │◄─┤               │  │                            │   │  │
-│  │  │  Transport    │  │  Industrial   │  │  Media (V2)                │   │  │
-│  │  │  Government ──┼─►│  Mkt (B2B)    │  │  (broadcast influence)     │   │  │
-│  │  │               │  │               │  │                            │   │  │
-│  │  │  (decisions   │  │  (prices,     │  │  (trend propagation,       │   │  │
-│  │  │   via Ch.2    │  │   supply/     │  │   purchase sharing,        │   │  │
-│  │  │   messages)   │  │   demand)     │  │   network diffusion)       │   │  │
-│  │  └───────┬───────┘  └───────────────┘  └────────────────────────────┘   │  │
-│  │          │ Ch.1 Action Events + Ch.3 Query Requests                     │  │
-│  └──────────┼──────────────────────────────────────────────────────────────┘  │
-│             │                                                                 │
-│             ▼                                                                 │
+│  │  ┌───────────────┐  ┌───────────────────┐  ┌───────────────────────┐    │  │
+│  │  │   MARKETS     │  │      AGENTS       │  │       SOCIETY         │    │  │
+│  │  │               │  │                   │  │                       │    │  │
+│  │  │  Consumer Mkt ├─►│  Consumer         │◄─┤  Social Network       │    │  │
+│  │  │  (B2C)        ├─►│  Seller           │◄─┤  (peer-to-peer        │    │  │
+│  │  │               ├─►│  Supplier         │  │   influence)          │    │  │
+│  │  │  Industrial   │  │  Transport        │  │                       │    │  │
+│  │  │  Mkt (B2B)  ◄─┼──┤  Government       │  │  Media (V2)           │    │  │
+│  │  │               │  │                   │  │  (broadcast           │    │  │
+│  │  │  (prices,     │  │  (decisions via   │  │   influence)          │    │  │
+│  │  │   supply/     │  │   Ch.2 messages)  │  │                       │    │  │
+│  │  │   demand)     │  │                   │  │  (trend propagation,  │    │  │
+│  │  │               │  │                   │  │   network diffusion)  │    │  │
+│  │  └───────────────┘  └─────────┬─────────┘  └───────────────────────┘    │  │
+│  │                               │ Ch.1 Action Events + Ch.3 Queries       │  │
+│  └───────────────────────────────┼─────────────────────────────────────────┘  │
+│                                  │                                            │
+│                                  ▼                                            │
 │  ┌─────────────────────────────────────────────────────────────────────────┐  │
 │  │                     TRANSLATOR                                          │  │
 │  │          (YAML operation catalog, SQL execution,                        │  │
