@@ -1,0 +1,35 @@
+domain: transport
+operations:
+  - name: insert_shipment
+    mode: write
+    params: { shipment_id: string, order_id: string, origin_id: int, dest_id: int, carrier_id: int, status: string, eta_tick: int }
+    sql: "INSERT INTO {tenant}.shipments (shipment_id, order_id, origin_id, dest_id, carrier_id, status, eta_tick) VALUES (:shipment_id, :order_id, :origin_id, :dest_id, :carrier_id, :status, :eta_tick)"
+
+  - name: insert_tracking_event
+    mode: write
+    params: { shipment_id: string, status: string, location: string, tick: int }
+    sql: "INSERT INTO {tenant}.tracking_events (shipment_id, status, location, tick) VALUES (:shipment_id, :status, :location, :tick)"
+
+  - name: update_shipment
+    mode: write
+    params: { shipment_id: string, status: string, delivered_tick: int }
+    sql: "UPDATE {tenant}.shipments SET status = :status, delivered_tick = :delivered_tick WHERE shipment_id = :shipment_id"
+
+  - name: shipment_tracking
+    mode: query
+    params: { order_id: string }
+    sql: |
+      SELECT s.status, s.eta_tick, (s.eta_tick < :current_tick) as is_delayed, t.location as last_location
+      FROM {tenant}.shipments s
+      LEFT JOIN {tenant}.tracking_events t ON s.shipment_id = t.shipment_id
+      WHERE s.order_id = :order_id
+      ORDER BY t.tick DESC LIMIT 1
+    reducer: single_row
+
+events:
+  - name: transport_shipment_created
+    requires: [insert_shipment, insert_tracking_event]
+  - name: transport_tracking_update
+    requires: [insert_tracking_event]
+  - name: transport_delivery_complete
+    requires: [update_shipment, insert_tracking_event]

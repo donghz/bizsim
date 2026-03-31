@@ -1,0 +1,71 @@
+domain: store
+operations:
+  - name: check_inventory
+    mode: read
+    params: { sku_id: int }
+    sql: "SELECT qty FROM {tenant}.inventory WHERE sku_id = :sku_id"
+    returns: { qty: int }
+
+  - name: insert_store_order
+    mode: write
+    params: { order_request_id: string, sku_id: int, qty: int, price: decimal, consumer_id: int, status: string }
+    sql: "INSERT INTO {tenant}.store_orders (order_request_id, sku_id, qty, price, consumer_id, status) VALUES (:order_request_id, :sku_id, :qty, :price, :consumer_id, :status)"
+
+  - name: update_inventory
+    mode: write
+    params: { sku_id: int, qty_delta: int }
+    sql: "UPDATE {tenant}.inventory SET qty = qty + :qty_delta WHERE sku_id = :sku_id"
+
+  - name: update_store_order
+    mode: write
+    params: { order_request_id: string, status: string }
+    sql: "UPDATE {tenant}.store_orders SET status = :status WHERE order_request_id = :order_request_id"
+
+  - name: insert_payment_log
+    mode: write
+    params: { store_order_id: string, amount: decimal, payer_id: int, tick: int }
+    sql: "INSERT INTO {tenant}.payment_log (store_order_id, amount, payer_id, tick) VALUES (:store_order_id, :amount, :payer_id, :tick)"
+
+  - name: select_current_price
+    mode: read
+    params: { sku_id: int }
+    sql: "SELECT price FROM {tenant}.inventory WHERE sku_id = :sku_id"
+
+  - name: update_store_pricing
+    mode: write
+    params: { sku_id: int, old_price: decimal, new_price: decimal, tick: int }
+    sql: "UPDATE {tenant}.inventory SET price = :new_price WHERE sku_id = :sku_id"
+
+  - name: sales_analytics
+    mode: query
+    params: { seller_id: int, window_ticks: int }
+    sql: |
+      SELECT sku_id, SUM(qty) as units_sold, SUM(qty * price) as revenue
+      FROM {tenant}.store_orders
+      WHERE status = 'accepted' AND created_tick > :current_tick - :window_ticks
+      GROUP BY sku_id ORDER BY revenue DESC
+    reducer: aggregation_summary
+
+  - name: inventory_check
+    mode: query
+    params: { seller_id: int, sku_id: int }
+    sql: "SELECT qty as qty_available FROM {tenant}.inventory WHERE sku_id = :sku_id"
+    reducer: single_row
+
+  - name: inventory_levels
+    mode: query
+    params: { seller_id: int }
+    sql: "SELECT sku_id, qty, updated_tick as last_updated_tick FROM {tenant}.inventory"
+    reducer: list_with_count
+
+events:
+  - name: store_order_accepted
+    requires: [check_inventory, insert_store_order, update_inventory]
+  - name: store_payment_received
+    requires: [insert_payment_log]
+  - name: store_order_cancelled
+    requires: [update_store_order, update_inventory]
+  - name: store_inventory_update
+    requires: [update_inventory]
+  - name: store_price_update
+    requires: [select_current_price, update_store_pricing]

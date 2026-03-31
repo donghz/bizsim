@@ -1,0 +1,12 @@
+domain: community
+operations:
+  - name: batch_update_influence_edges
+    mode: write
+    params: { edges: list }
+    sql_sequence:
+      - "DELETE FROM {tenant}.influence_edges WHERE source_id = :source_id AND target_id = :target_id"
+      - "INSERT INTO {tenant}.influence_edges (source_id, target_id, weight) VALUES (:source_id, :target_id, :new_weight)"
+
+events:
+  - name: community_propagation_batch
+    requires: [batch_update_influence_edges]
