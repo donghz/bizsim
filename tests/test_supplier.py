@@ -14,6 +14,7 @@ def supplier_agent():
         agent_type="Supplier",
         tenant_context=tenant_context,
         scheduling_config=scheduling_config,
+        peer_agents={"transport": 1000},
     )
 
 
