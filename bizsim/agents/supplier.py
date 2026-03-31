@@ -1,9 +1,12 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from bizsim.agents.base import BaseAgent
 from bizsim.channels import InterAgentMessage
 from bizsim.domain import ActionEvent, ReadPattern, WritePattern
+
+if TYPE_CHECKING:
+    from bizsim.product_catalog import ProductCatalog
 
 
 class SupplierAgent(BaseAgent):
@@ -25,40 +28,50 @@ class SupplierAgent(BaseAgent):
             "qty": qty,
         }
 
+        params = {
+            "restock_order_id": str(restock_order_id),
+            "sku_id": sku_id,
+            "qty": qty,
+            "store_id": store_id,
+            "status": "fulfilled",
+        }
+
+        if self.catalog:
+            bom: list[dict[str, Any]] = self.catalog.get_bom(sku_id)
+            if bom:
+                params["bom"] = bom
+
         write = WritePattern(
             pattern="insert_purchase_order",
-            params={
-                "restock_order_id": str(restock_order_id),
-                "sku_id": sku_id,
-                "qty": qty,
-                "store_id": store_id,
-                "status": "fulfilled",
-            },
+            params=params,
         )
 
-        transport_id = 1000
+        messages = []
+        transport_id = self.peer_agents.get("transport")
 
-        msg = InterAgentMessage(
-            msg_id=uuid4(),
-            msg_type="ship_request",
-            from_agent=self.agent_id,
-            to_agent=transport_id,
-            from_tenant=self.tenant_id,
-            tick_sent=tick,
-            payload={
-                "restock_order_id": str(restock_order_id),
-                "origin_id": self.agent_id,
-                "destination_id": store_id,
-                "items": [{"sku_id": sku_id, "qty": qty}],
-                "shipment_type": "restock",
-            },
-        )
+        if transport_id:
+            msg = InterAgentMessage(
+                msg_id=uuid4(),
+                msg_type="ship_request",
+                from_agent=self.agent_id,
+                to_agent=transport_id,
+                from_tenant=self.tenant_id,
+                tick_sent=tick,
+                payload={
+                    "restock_order_id": str(restock_order_id),
+                    "origin_id": self.agent_id,
+                    "destination_id": store_id,
+                    "items": [{"sku_id": sku_id, "qty": qty}],
+                    "shipment_type": "restock",
+                },
+            )
+            messages.append(msg)
 
         event = self._emitter.emit(
             event_type="supplier_restock_fulfilled",
             tick=tick,
             writes=[write],
-            messages=[msg],
+            messages=messages,
         )
         return [event]
 
@@ -112,6 +125,17 @@ class SupplierAgent(BaseAgent):
         """
         Handles periodic production bookkeeping.
         """
+        params: dict[str, Any] = {
+            "supplier_id": self.agent_id,
+            "produced_qty": 0,
+            "current_capacity": 1000000,
+        }
+
+        if self.catalog:
+            produced_parts = self.catalog.get_parts_for_supplier(self.agent_id)
+            if produced_parts:
+                params["produced_parts"] = produced_parts
+
         event = self._emitter.emit(
             event_type="supplier_production_update",
             tick=tick,
@@ -119,11 +143,7 @@ class SupplierAgent(BaseAgent):
             writes=[
                 WritePattern(
                     pattern="update_supplier_capacity",
-                    params={
-                        "supplier_id": self.agent_id,
-                        "produced_qty": 0,
-                        "current_capacity": 1000000,
-                    },
+                    params=params,
                 )
             ],
         )

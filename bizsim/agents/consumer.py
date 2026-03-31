@@ -1,6 +1,9 @@
 import random
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from bizsim.product_catalog import ProductCatalog
 
 try:
     from typing_extensions import override
@@ -20,8 +23,20 @@ class ConsumerAgent(BaseAgent):
         scheduling_config: dict[str, Any],
         profile: dict[str, Any],
         seed: int = 42,
+        *,
+        catalog: "ProductCatalog | None" = None,
+        peer_agents: dict[str, int] | None = None,
+        **kwargs: Any,
     ):
-        super().__init__(agent_id, "consumer", tenant_context, scheduling_config, seed=seed)
+        super().__init__(
+            agent_id,
+            "consumer",
+            tenant_context,
+            scheduling_config,
+            seed=seed,
+            catalog=catalog,
+            peer_agents=peer_agents,
+        )
         self.profile = profile
         # profile contains: interest (dict), price_sensitivity (float), urgency (dict)
         self.cart: list[dict[str, Any]] = []
@@ -56,17 +71,11 @@ class ConsumerAgent(BaseAgent):
 
         event = self._emitter.emit(event_type="consumer_browse", tick=tick, reads=read_patterns)
 
-        # For simulation purposes, we'll "discover" some SKUs to view.
-        # Since we don't have a real DB, we'll assume we found some SKUs.
-        # In a real run, the translator would have executed the SELECTs.
-        # The agent then proceeds to view_product in the NEXT tick.
-        # But wait, spec says view_product is triggered by pipeline continuation.
-
-        # We'll store the intent to view in local state.
-        # In V1, we'll just fake some SKU IDs for the view step.
-        self._skus_to_view = [
-            {"sku_id": self.rng.randint(1000, 9999), "category": category} for _ in range(3)
-        ]
+        if self.catalog:
+            skus = self.catalog.browse_skus(category, limit=3)
+            self._skus_to_view = [{"sku_id": s["sku_id"], "category": category} for s in skus]
+        else:
+            self._skus_to_view = []
 
         # Next tick, we'll run view_product.
         # Since the scheduling handles handle_shopping, we might need a state machine
@@ -115,8 +124,12 @@ class ConsumerAgent(BaseAgent):
         actual_price = data.get("current_price", 100.0)
         avg_review = data.get("avg_review", 4.0)
 
-        # V1 logic: base_price is not known locally, we'll assume a value or use 100.0
         base_price = 100.0
+        if self.catalog:
+            sku_data = self.catalog.get_sku(sku_id)
+            if sku_data:
+                base_price = sku_data.get("base_price", 100.0)
+
         price_sensitivity = self.profile.get("price_sensitivity", 1.0)
 
         price_ratio = (float(actual_price) - base_price) / base_price
@@ -140,7 +153,12 @@ class ConsumerAgent(BaseAgent):
         self, sku_id: int, qty: int, category: str, price: float, tick: int
     ) -> list[ActionEvent]:
         order_request_id = str(uuid4())
+
         seller_id = self.rng.randint(1, 10)
+        if self.catalog:
+            sellers = self.catalog.get_sellers_for_sku(sku_id)
+            if sellers:
+                seller_id = self.rng.choice([s["seller_id"] for s in sellers])
 
         self.pending_orders[order_request_id] = {
             "sku_id": sku_id,
@@ -278,7 +296,7 @@ class ConsumerAgent(BaseAgent):
             self.pending_orders[order_request_id]["status"] = "cancel_requested"
             seller_id = self.pending_orders[order_request_id]["seller_id"]
         else:
-            seller_id = 1
+            return []
 
         write_patterns = [
             WritePattern(

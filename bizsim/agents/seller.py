@@ -1,9 +1,12 @@
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 from uuid import uuid4, UUID
 
 from bizsim.agents.base import BaseAgent
 from bizsim.channels import InterAgentMessage
 from bizsim.domain import ActionEvent, ReadPattern, WritePattern, TenantContext
+
+if TYPE_CHECKING:
+    from bizsim.product_catalog import ProductCatalog
 
 
 class SellerAgent(BaseAgent):
@@ -13,8 +16,19 @@ class SellerAgent(BaseAgent):
         tenant_context: TenantContext,
         scheduling_config: Dict[str, Any],
         seed: int = 42,
+        *,
+        catalog: "ProductCatalog | None" = None,
+        peer_agents: Dict[str, int] | None = None,
     ):
-        super().__init__(agent_id, "seller", tenant_context, scheduling_config, seed)
+        super().__init__(
+            agent_id,
+            "seller",
+            tenant_context,
+            scheduling_config,
+            seed,
+            catalog=catalog,
+            peer_agents=peer_agents,
+        )
         self.pending_incoming: Dict[UUID, Dict[str, Any]] = {}
         self.orders: Dict[UUID, Dict[str, Any]] = {}
         self.pending_restocks: Dict[UUID, Dict[str, Any]] = {}
@@ -126,7 +140,43 @@ class SellerAgent(BaseAgent):
             return []
 
         order["status"] = "paid"
-        transport_agent_id = 5000
+        transport_agent_id = self.peer_agents.get("transport")
+
+        messages = []
+        if transport_agent_id:
+            messages.append(
+                self._send_message(
+                    "ship_request",
+                    transport_agent_id,
+                    {
+                        "shipment_request_id": str(uuid4()),
+                        "store_order_id": store_order_id,
+                        "origin_id": self.agent_id,
+                        "destination_id": from_agent,
+                        "items": [{"sku_id": order["sku_id"], "qty": order["qty"]}],
+                        "shipment_type": "consumer_order",
+                    },
+                    tick,
+                )
+            )
+
+        gov_agent_id = self.peer_agents.get("government")
+        if gov_agent_id:
+            messages.append(
+                self._send_message(
+                    "order_report",
+                    gov_agent_id,
+                    {
+                        "store_order_id": store_order_id,
+                        "seller_id": self.agent_id,
+                        "sku_id": order["sku_id"],
+                        "qty": order["qty"],
+                        "amount": amount,
+                        "tick": tick,
+                    },
+                    tick,
+                )
+            )
 
         event = self._emitter.emit(
             "store_payment_received",
@@ -142,34 +192,7 @@ class SellerAgent(BaseAgent):
                     },
                 )
             ],
-            messages=[
-                self._send_message(
-                    "ship_request",
-                    transport_agent_id,
-                    {
-                        "shipment_request_id": str(uuid4()),
-                        "store_order_id": store_order_id,
-                        "origin_id": self.agent_id,
-                        "destination_id": from_agent,
-                        "items": [{"sku_id": order["sku_id"], "qty": order["qty"]}],
-                        "shipment_type": "consumer_order",
-                    },
-                    tick,
-                ),
-                self._send_message(
-                    "order_report",
-                    9000,
-                    {
-                        "store_order_id": store_order_id,
-                        "seller_id": self.agent_id,
-                        "sku_id": order["sku_id"],
-                        "qty": order["qty"],
-                        "amount": amount,
-                        "tick": tick,
-                    },
-                    tick,
-                ),
-            ],
+            messages=messages,
         )
         return [event]
 
@@ -290,27 +313,47 @@ class SellerAgent(BaseAgent):
     def on_competitor_prices_result(
         self, data: Dict[str, Any], context: Dict[str, Any], tick: int
     ) -> List[ActionEvent]:
-        sku_id = 101
-        old_price = 10.0
-        new_price = 9.5
+        if not self.catalog:
+            return []
 
-        event = self._emitter.emit(
-            "store_price_update",
-            tick,
-            reads=[ReadPattern("select_current_price", {"sku_id": sku_id})],
-            writes=[
-                WritePattern(
-                    "update_store_pricing",
-                    {
-                        "sku_id": sku_id,
-                        "old_price": old_price,
-                        "new_price": new_price,
-                        "tick": tick,
-                    },
+        skus = self.catalog.get_skus_for_seller(self.agent_id)
+        events = []
+
+        for sku_info in skus:
+            sku_id = sku_info["sku_id"]
+            price_floor = sku_info.get("price_floor", 0.0)
+            price_ceiling = sku_info.get("price_ceiling", 1000000.0)
+            base_price = sku_info.get("base_price", 100.0)
+
+            current_sales = self.sales_cache.get(str(sku_id), 0)
+            price_change_percent = 0.0
+            if current_sales > 10:
+                price_change_percent = 0.05
+            elif current_sales < 2:
+                price_change_percent = -0.05
+
+            new_price = base_price * (1 + price_change_percent)
+            new_price = max(price_floor, min(price_ceiling, new_price))
+
+            events.append(
+                self._emitter.emit(
+                    "store_price_update",
+                    tick,
+                    reads=[ReadPattern("select_current_price", {"sku_id": sku_id})],
+                    writes=[
+                        WritePattern(
+                            "update_store_pricing",
+                            {
+                                "sku_id": sku_id,
+                                "old_price": base_price,
+                                "new_price": new_price,
+                                "tick": tick,
+                            },
+                        )
+                    ],
                 )
-            ],
-        )
-        return [event]
+            )
+        return events
 
     def handle_evaluate_inventory(self, tick: int) -> List[ActionEvent]:
         req = self.emit_query("inventory_levels", {"seller_id": self.agent_id}, {})
@@ -331,8 +374,19 @@ class SellerAgent(BaseAgent):
             sku_id = item["sku_id"]
             qty = item["qty"]
             if qty < 10:
+                supplier_id = None
+                if self.catalog:
+                    suppliers = self.catalog.get_suppliers_for_sku(sku_id)
+                    primary_suppliers = [s for s in suppliers if s.get("is_primary")]
+                    if primary_suppliers:
+                        supplier_id = primary_suppliers[0].get("supplier_id")
+                    elif suppliers:
+                        supplier_id = suppliers[0].get("supplier_id")
+
+                if supplier_id is None:
+                    continue
+
                 restock_order_id = uuid4()
-                supplier_id = 2000
                 self.pending_restocks[restock_order_id] = {
                     "sku_id": sku_id,
                     "qty": 50,

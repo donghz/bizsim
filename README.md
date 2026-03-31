@@ -33,7 +33,7 @@ The simulation and database are separated by a bidirectional domain boundary —
 │   Ch.3: Query Requests                         Ch.3: Query Requests                 │
 │   (reads from OWN tenant)                      (reads from OWN tenant)              │
 │      │         ▲                                   │         ▲                      │
-│└──────┼─────────┼───────────────────────────────────┼─────────┼──────────────────────┘
+└──────┼─────────┼───────────────────────────────────┼─────────┼──────────────────────┘
        │         │                                   │         │
        ▼         │ domain answers                    ▼         │ domain answers
 ┌──────────────────────────────────────────────────────────────────────────────────────┐

@@ -1,9 +1,9 @@
 import pytest
 from uuid import uuid4
+from unittest.mock import MagicMock
 from bizsim.agents.seller import SellerAgent
 from bizsim.domain import TenantContext
-from bizsim.channels import InterAgentMessage
-from bizsim.events import QueryResult
+from bizsim.product_catalog import ProductCatalog
 
 
 @pytest.fixture
@@ -15,8 +15,12 @@ def seller_agent():
             "evaluate_inventory": {"cycle_ticks": 100, "jitter": 5},
         }
     }
+    peer_agents = {"transport": 5000, "government": 9000}
     return SellerAgent(
-        agent_id=1, tenant_context=tenant_context, scheduling_config=scheduling_config
+        agent_id=1,
+        tenant_context=tenant_context,
+        scheduling_config=scheduling_config,
+        peer_agents=peer_agents,
     )
 
 
@@ -122,6 +126,10 @@ def test_handle_evaluate_inventory(seller_agent):
 
 
 def test_on_inventory_levels_result(seller_agent):
+    mock_catalog = MagicMock(spec=ProductCatalog)
+    mock_catalog.get_suppliers_for_sku.return_value = [{"supplier_id": 2000, "is_primary": True}]
+    seller_agent.catalog = mock_catalog
+
     data = {
         "inventory": [
             {"sku_id": 101, "qty": 5},  # Below threshold (10)

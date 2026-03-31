@@ -2,7 +2,10 @@ import random
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from bizsim.product_catalog import ProductCatalog
 
 from bizsim.channels import InboxItem, InterAgentMessage
 from bizsim.domain import ActionEvent
@@ -19,6 +22,8 @@ class TickEngine:
         seed: int = 42,
         query_handler: Any = None,
         community_hook: Any = None,
+        catalog: "ProductCatalog | None" = None,
+        peer_agents_config: dict[str, int] | None = None,
     ) -> None:
         self.agents: dict[int, Any] = {a.agent_id: a for a in agents}
 
@@ -26,8 +31,20 @@ class TickEngine:
         self.random = random.Random(seed)
         self.query_handler = query_handler
         self.community_hook = community_hook
+        self.catalog = catalog
+        self.peer_agents_config = peer_agents_config
+
+        self._inject_dependencies()
+
         self.action_log = []
         self._current_tick_query_requests = []
+
+    def _inject_dependencies(self) -> None:
+        for agent in self.agents.values():
+            if hasattr(agent, "catalog") and self.catalog is not None:
+                agent.catalog = self.catalog
+            if hasattr(agent, "peer_agents") and self.peer_agents_config is not None:
+                agent.peer_agents = self.peer_agents_config
 
     def register_query(self, request: QueryRequest) -> None:
         self._current_tick_query_requests.append(request)

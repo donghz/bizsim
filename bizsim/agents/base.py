@@ -1,6 +1,9 @@
 import random
 from collections import deque
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from bizsim.product_catalog import ProductCatalog
 from uuid import uuid4
 
 from bizsim.channels import InboxItem, InterAgentMessage
@@ -33,6 +36,9 @@ class BaseAgent:
         tenant_context: TenantContext,
         scheduling_config: dict[str, Any],
         seed: int = 42,
+        *,
+        catalog: "ProductCatalog | None" = None,
+        peer_agents: dict[str, int] | None = None,
     ):
         self.agent_id = agent_id
         self.agent_type = agent_type
@@ -40,6 +46,9 @@ class BaseAgent:
         self.inbox: deque[InboxItem] = deque()
         self.pending_queries: dict[str, PendingQuery] = {}
         self._emitter = EventEmitter(tenant_context, agent_id)
+
+        self.catalog = catalog
+        self.peer_agents = peer_agents or {}
 
         self._scheduling = scheduling_config.get(agent_type, {})
         self._last_fired: dict[str, int] = {}
