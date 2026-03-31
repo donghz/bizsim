@@ -9,6 +9,14 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class PendingQuery:
+    query_id: str
+    query_template: str
+    context: dict[str, Any]
+    issued_tick: int
+
+
+@dataclass
 class QueryRequest:
     query_id: str
     agent_id: int
@@ -41,6 +49,7 @@ class EventEmitter:
         reads: list[ReadPattern] | None = None,
         writes: list[WritePattern] | None = None,
         messages: list["InterAgentMessage"] | None = None,
+        queries: list[QueryRequest] | None = None,
     ) -> ActionEvent:
         return ActionEvent(
             event_id=uuid4(),
@@ -51,4 +60,5 @@ class EventEmitter:
             reads=reads or [],
             writes=writes or [],
             messages=messages or [],
+            queries=queries or [],
         )

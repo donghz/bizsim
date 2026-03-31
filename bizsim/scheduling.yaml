@@ -1,0 +1,34 @@
+scheduling:
+  consumer:
+    browse_catalog:
+      cycle_ticks: 10          # browse every ~10 ticks (10 simulated hours)
+      jitter: 3                # actual period: 7-13 ticks per consumer
+    query_order_history:
+      cycle_ticks: 50          # check order history every ~50 ticks
+      jitter: 10
+
+  seller:
+    evaluate_pricing:
+      cycle_ticks: 100         # pricing review every ~100 ticks (~4 sim days)
+      jitter: 20
+    evaluate_inventory:
+      cycle_ticks: 60          # inventory review every ~60 ticks (~2.5 sim days)
+      jitter: 15
+
+  supplier:
+    produce_goods:
+      cycle_ticks: 24          # daily production update
+      jitter: 0                # no jitter — production runs on schedule
+    query_fulfillment_status:
+      cycle_ticks: 48          # check fulfillment every ~2 sim days
+      jitter: 10
+
+  transport:
+    update_tracking:
+      cycle_ticks: 1           # tracking updates every tick for active shipments
+      jitter: 0
+
+  government:
+    compute_statistics:
+      cycle_ticks: 168         # weekly statistics computation (~7 sim days)
+      jitter: 0                # government runs on fixed schedule

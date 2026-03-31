@@ -40,6 +40,7 @@ class ActionEvent:
     messages: list[Any] = field(
         default_factory=list
     )  # Any to avoid circular import with InterAgentMessage
+    queries: list[Any] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """SQL keyword guard for event payloads."""
