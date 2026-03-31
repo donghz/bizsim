@@ -123,13 +123,19 @@ bizsim/                      # Python simulation package
     transport.py             # Transport agent
     government.py            # Government agent
     runner.py                # Agent execution utilities
-  community/
-    subsystem.py             # Social influence (Independent Cascade)
+  markets/                   # Market subsystem implementations
+    schema.py                # SQLite DDL, seeding, lookup helpers
+    consumer_market.py       # B2C market (browse, SKU, sellers)
+    industrial_market.py     # B2B market (suppliers, BOM, parts)
+  market.py                  # Market facade (ConsumerMarket, IndustrialMarket, MarketFactory)
+  society/                   # Society subsystem implementations
+    community.py             # Social influence (Independent Cascade)
+    media.py                 # Media subsystem (V2 placeholder)
+  social.py                  # Society facade (re-exports CommunitySubsystem, etc.)
   engine.py                  # TickEngine — tick loop orchestration
   domain.py                  # Core types (TenantContext, ActionEvent)
   events.py                  # EventEmitter, QueryRequest, QueryResult
   channels.py                # InterAgentMessage, InboxItem
-  product_system.py          # SQLite schema, SKU catalog
 
 go-translator/               # Go workload translator
   operations/                # YAML operation catalog
@@ -139,7 +145,7 @@ go-translator/               # Go workload translator
   pkg/reducers/              # Result reduction logic
 
 specs/                       # 14 specification files
-tests/                       # 57 tests (56 unit + 1 integration)
+tests/                       # 83 tests (82 unit + 1 integration)
 ```
 
 ## Architectural Invariants

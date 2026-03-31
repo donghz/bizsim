@@ -1,18 +1,12 @@
 import random
-from collections import deque
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, Protocol, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from bizsim.product_catalog import ProductCatalog
+    from bizsim.market import MarketFactory
 
-from bizsim.channels import InboxItem, InterAgentMessage
+from bizsim.channels import InterAgentMessage
 from bizsim.domain import ActionEvent
-from bizsim.events import QueryRequest, QueryResult, PendingQuery
-
-
-from bizsim.agents.base import AgentProtocol, BaseAgent
+from bizsim.events import QueryRequest, QueryResult
 
 
 class TickEngine:
@@ -22,7 +16,7 @@ class TickEngine:
         seed: int = 42,
         query_handler: Any = None,
         community_hook: Any = None,
-        catalog: "ProductCatalog | None" = None,
+        catalog: "MarketFactory | None" = None,
         peer_agents_config: dict[str, int] | None = None,
     ) -> None:
         self.agents: dict[int, Any] = {a.agent_id: a for a in agents}
@@ -36,8 +30,8 @@ class TickEngine:
 
         self._inject_dependencies()
 
-        self.action_log = []
-        self._current_tick_query_requests = []
+        self.action_log: list[ActionEvent] = []
+        self._current_tick_query_requests: list[QueryRequest] = []
 
     def _inject_dependencies(self) -> None:
         for agent in self.agents.values():

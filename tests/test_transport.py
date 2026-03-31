@@ -1,8 +1,8 @@
+
 import pytest
-from uuid import uuid4
+
 from bizsim.agents.transport import TransportAgent
 from bizsim.domain import TenantContext
-from bizsim.channels import InterAgentMessage
 
 
 @pytest.fixture

@@ -1,28 +1,31 @@
+from unittest.mock import MagicMock
 from uuid import uuid4
-from typing import Any
+
 import pytest
+
 from bizsim.agents.supplier import SupplierAgent
-from bizsim.domain import TenantContext, ActionEvent
-from bizsim.product_catalog import ProductCatalog
+from bizsim.domain import TenantContext
 
 
-class MockCatalog:
-    def get_bom(self, sku_id: int) -> list[dict[str, Any]]:
-        if sku_id == 1:
-            return [{"part_id": 101, "quantity": 2}, {"part_id": 102, "quantity": 1}]
-        return []
+def _make_mock_catalog() -> MagicMock:
+    catalog = MagicMock()
+    catalog.industrial.get_bom.side_effect = lambda sku_id: (
+        [{"part_id": 101, "quantity": 2}, {"part_id": 102, "quantity": 1}] if sku_id == 1 else []
+    )
+    catalog.industrial.get_parts_for_supplier.side_effect = lambda supplier_id: (
+        [{"part_id": 101, "sku_id": 1001}, {"part_id": 102, "sku_id": 1002}]
+        if supplier_id == 500
+        else []
+    )
 
-    def get_parts_for_supplier(self, supplier_id: int) -> list[dict[str, Any]]:
-        if supplier_id == 500:
-            return [{"part_id": 101, "sku_id": 1001}, {"part_id": 102, "sku_id": 1002}]
-        return []
+    return catalog
 
 
 @pytest.fixture
 def supplier_agent_with_catalog():
     tenant_context = TenantContext(tenant_id="supplier_tenant_1")
     scheduling_config = {"Supplier": {"produce_goods": {"cycle_ticks": 10}}}
-    catalog = MockCatalog()
+    catalog = _make_mock_catalog()
     peer_agents = {"transport": 1001}
     return SupplierAgent(
         agent_id=500,

@@ -1,12 +1,12 @@
-from typing import TYPE_CHECKING, Any, Dict, List
-from uuid import uuid4, UUID
+from typing import TYPE_CHECKING, Any
+from uuid import UUID, uuid4
 
 from bizsim.agents.base import BaseAgent
 from bizsim.channels import InterAgentMessage
-from bizsim.domain import ActionEvent, ReadPattern, WritePattern, TenantContext
+from bizsim.domain import ActionEvent, ReadPattern, TenantContext, WritePattern
 
 if TYPE_CHECKING:
-    from bizsim.product_catalog import ProductCatalog
+    from bizsim.market import MarketFactory
 
 
 class SellerAgent(BaseAgent):
@@ -14,11 +14,11 @@ class SellerAgent(BaseAgent):
         self,
         agent_id: int,
         tenant_context: TenantContext,
-        scheduling_config: Dict[str, Any],
+        scheduling_config: dict[str, Any],
         seed: int = 42,
         *,
-        catalog: "ProductCatalog | None" = None,
-        peer_agents: Dict[str, int] | None = None,
+        catalog: "MarketFactory | None" = None,
+        peer_agents: dict[str, int] | None = None,
     ):
         super().__init__(
             agent_id,
@@ -29,13 +29,13 @@ class SellerAgent(BaseAgent):
             catalog=catalog,
             peer_agents=peer_agents,
         )
-        self.pending_incoming: Dict[UUID, Dict[str, Any]] = {}
-        self.orders: Dict[UUID, Dict[str, Any]] = {}
-        self.pending_restocks: Dict[UUID, Dict[str, Any]] = {}
-        self.sales_cache: Dict[str, Any] = {}
+        self.pending_incoming: dict[UUID, dict[str, Any]] = {}
+        self.orders: dict[UUID, dict[str, Any]] = {}
+        self.pending_restocks: dict[UUID, dict[str, Any]] = {}
+        self.sales_cache: dict[str, Any] = {}
 
     def _send_message(
-        self, msg_type: str, to_agent: int, payload: Dict[str, Any], tick: int
+        self, msg_type: str, to_agent: int, payload: dict[str, Any], tick: int
     ) -> InterAgentMessage:
         return InterAgentMessage(
             msg_id=uuid4(),
@@ -48,8 +48,8 @@ class SellerAgent(BaseAgent):
         )
 
     def on_place_order(
-        self, payload: Dict[str, Any], from_agent: int, tick: int
-    ) -> List[ActionEvent]:
+        self, payload: dict[str, Any], from_agent: int, tick: int
+    ) -> list[ActionEvent]:
         order_request_id = payload["order_request_id"]
         sku_id = payload["sku_id"]
         qty = payload["qty"]
@@ -78,8 +78,8 @@ class SellerAgent(BaseAgent):
         ]
 
     def on_inventory_check_result(
-        self, data: Dict[str, Any], context: Dict[str, Any], tick: int
-    ) -> List[ActionEvent]:
+        self, data: dict[str, Any], context: dict[str, Any], tick: int
+    ) -> list[ActionEvent]:
         order_request_id = context["order_request_id"]
         order = self.pending_incoming.pop(order_request_id, None)
         if not order:
@@ -130,7 +130,7 @@ class SellerAgent(BaseAgent):
         )
         return [event]
 
-    def on_payment(self, payload: Dict[str, Any], from_agent: int, tick: int) -> List[ActionEvent]:
+    def on_payment(self, payload: dict[str, Any], from_agent: int, tick: int) -> list[ActionEvent]:
         order_request_id = payload["order_request_id"]
         store_order_id = payload["store_order_id"]
         amount = payload["amount"]
@@ -197,8 +197,8 @@ class SellerAgent(BaseAgent):
         return [event]
 
     def on_delivery_complete(
-        self, payload: Dict[str, Any], from_agent: int, tick: int
-    ) -> List[ActionEvent]:
+        self, payload: dict[str, Any], from_agent: int, tick: int
+    ) -> list[ActionEvent]:
         shipment_type = payload.get("shipment_type")
         if shipment_type != "consumer_order":
             return []
@@ -230,8 +230,8 @@ class SellerAgent(BaseAgent):
         return [self._emitter.emit("store_delivery_confirmed", tick, messages=[msg])]
 
     def on_restock_delivered(
-        self, payload: Dict[str, Any], from_agent: int, tick: int
-    ) -> List[ActionEvent]:
+        self, payload: dict[str, Any], from_agent: int, tick: int
+    ) -> list[ActionEvent]:
         restock_order_id = payload["restock_order_id"]
         sku_id = payload["sku_id"]
         qty = payload["qty"]
@@ -247,8 +247,8 @@ class SellerAgent(BaseAgent):
         return [event]
 
     def on_cancel_request(
-        self, payload: Dict[str, Any], from_agent: int, tick: int
-    ) -> List[ActionEvent]:
+        self, payload: dict[str, Any], from_agent: int, tick: int
+    ) -> list[ActionEvent]:
         order_request_id = payload["order_request_id"]
         order = self.orders.get(order_request_id)
 
@@ -286,7 +286,7 @@ class SellerAgent(BaseAgent):
             )
             return [self._emitter.emit("store_cancel_rejected", tick, messages=[msg])]
 
-    def handle_evaluate_pricing(self, tick: int) -> List[ActionEvent]:
+    def handle_evaluate_pricing(self, tick: int) -> list[ActionEvent]:
         req1 = self.emit_query(
             "sales_analytics", {"seller_id": self.agent_id, "window_ticks": 200}, {}
         )
@@ -305,18 +305,18 @@ class SellerAgent(BaseAgent):
         ]
 
     def on_sales_analytics_result(
-        self, data: Dict[str, Any], context: Dict[str, Any], tick: int
-    ) -> List[ActionEvent]:
+        self, data: dict[str, Any], context: dict[str, Any], tick: int
+    ) -> list[ActionEvent]:
         self.sales_cache = data
         return []
 
     def on_competitor_prices_result(
-        self, data: Dict[str, Any], context: Dict[str, Any], tick: int
-    ) -> List[ActionEvent]:
+        self, data: dict[str, Any], context: dict[str, Any], tick: int
+    ) -> list[ActionEvent]:
         if not self.catalog:
             return []
 
-        skus = self.catalog.get_skus_for_seller(self.agent_id)
+        skus = self.catalog.consumer.get_skus_for_seller(self.agent_id)
         events = []
 
         for sku_info in skus:
@@ -355,7 +355,7 @@ class SellerAgent(BaseAgent):
             )
         return events
 
-    def handle_evaluate_inventory(self, tick: int) -> List[ActionEvent]:
+    def handle_evaluate_inventory(self, tick: int) -> list[ActionEvent]:
         req = self.emit_query("inventory_levels", {"seller_id": self.agent_id}, {})
         return [
             self._emitter.emit(
@@ -367,8 +367,8 @@ class SellerAgent(BaseAgent):
         ]
 
     def on_inventory_levels_result(
-        self, data: Dict[str, Any], context: Dict[str, Any], tick: int
-    ) -> List[ActionEvent]:
+        self, data: dict[str, Any], context: dict[str, Any], tick: int
+    ) -> list[ActionEvent]:
         messages = []
         for item in data.get("inventory", []):
             sku_id = item["sku_id"]
@@ -376,7 +376,7 @@ class SellerAgent(BaseAgent):
             if qty < 10:
                 supplier_id = None
                 if self.catalog:
-                    suppliers = self.catalog.get_suppliers_for_sku(sku_id)
+                    suppliers = self.catalog.industrial.get_suppliers_for_sku(sku_id)
                     primary_suppliers = [s for s in suppliers if s.get("is_primary")]
                     if primary_suppliers:
                         supplier_id = primary_suppliers[0].get("supplier_id")

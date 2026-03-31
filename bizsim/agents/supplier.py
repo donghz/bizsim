@@ -1,12 +1,9 @@
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import uuid4
 
 from bizsim.agents.base import BaseAgent
 from bizsim.channels import InterAgentMessage
 from bizsim.domain import ActionEvent, ReadPattern, WritePattern
-
-if TYPE_CHECKING:
-    from bizsim.product_catalog import ProductCatalog
 
 
 class SupplierAgent(BaseAgent):
@@ -37,7 +34,7 @@ class SupplierAgent(BaseAgent):
         }
 
         if self.catalog:
-            bom: list[dict[str, Any]] = self.catalog.get_bom(sku_id)
+            bom: list[dict[str, Any]] = self.catalog.industrial.get_bom(sku_id)
             if bom:
                 params["bom"] = bom
 
@@ -132,7 +129,7 @@ class SupplierAgent(BaseAgent):
         }
 
         if self.catalog:
-            produced_parts = self.catalog.get_parts_for_supplier(self.agent_id)
+            produced_parts = self.catalog.industrial.get_parts_for_supplier(self.agent_id)
             if produced_parts:
                 params["produced_parts"] = produced_parts
 

@@ -1,17 +1,17 @@
-import pytest
 import random
 import sqlite3
 from typing import Any
-from bizsim.engine import TickEngine
+
 from bizsim.agents.consumer import ConsumerAgent
+from bizsim.agents.government import GovernmentAgent
 from bizsim.agents.seller import SellerAgent
 from bizsim.agents.supplier import SupplierAgent
 from bizsim.agents.transport import TransportAgent
-from bizsim.agents.government import GovernmentAgent
 from bizsim.domain import TenantContext
+from bizsim.engine import TickEngine
 from bizsim.events import QueryRequest, QueryResult
-from bizsim.product_system import create_tables, seed_catalog
-from bizsim.product_catalog import SqliteProductCatalog
+from bizsim.market import MarketFactory
+from bizsim.markets.schema import create_tables, seed_catalog
 
 
 def test_minimum_viable_purchase_scenario():
@@ -88,7 +88,7 @@ def test_minimum_viable_purchase_scenario():
         supplier_mappings=supplier_mappings,
     )
 
-    catalog = SqliteProductCatalog(conn, tenant_id=tenant_id_int)
+    catalog = MarketFactory(conn, tenant_id=tenant_id_int)
 
     # Inventory state (mocked via query handler)
     # Start with low inventory for all SKUs to trigger restock
@@ -98,7 +98,7 @@ def test_minimum_viable_purchase_scenario():
         data: dict[str, Any] = {}
         if request.query_template == "product_details":
             sku_id = request.params["sku_id"]
-            sku_info = catalog.get_sku(sku_id)
+            sku_info = catalog.consumer.get_sku(sku_id)
             data = {
                 "sku_id": sku_id,
                 "current_price": sku_info["base_price"] if sku_info else 100.0,
@@ -203,7 +203,7 @@ def test_minimum_viable_purchase_scenario():
 
     # Run simulation
     ticks = 100
-    for t in range(ticks):
+    for _t in range(ticks):
         engine.step()
 
         for event in engine.action_log:
@@ -234,7 +234,8 @@ def test_minimum_viable_purchase_scenario():
 
     # Verify that seller triggered restocks to the real supplier ID
     # In SellerAgent, restock messages are sent to the supplier.
-    # We can check the action log for restock messages or check seller's pending_restocks if they store supplier_id.
+    # We can check the action log for restock messages or check
+    # seller's pending_restocks if they store supplier_id.
     # Actually, SellerAgent.handle_evaluate_inventory gets supplier_id from catalog.
     # Let's check action log for messages sent to SUPPLIER_ID.
     restock_requests = [

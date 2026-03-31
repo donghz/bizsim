@@ -1,49 +1,56 @@
-import pytest
 from typing import Any
+
 from bizsim.engine import TickEngine
-from bizsim.product_catalog import ProductCatalog
 
 
 class MockAgent:
     def __init__(self, agent_id: int):
         self.agent_id = agent_id
-        self.inbox = []
-        self.catalog = None
-        self.peer_agents = None
+        self.inbox: list[Any] = []
+        self.catalog: Any = None
+        self.peer_agents: Any = None
 
-    def step(self, tick: int):
+    def step(self, tick: int) -> list[Any]:
         return []
 
 
 class UnsupportedAgent:
     def __init__(self, agent_id: int):
         self.agent_id = agent_id
-        self.inbox = []
+        self.inbox: list[Any] = []
 
-    def step(self, tick: int):
+    def step(self, tick: int) -> list[Any]:
         return []
 
 
 class MockCatalog:
-    def browse_skus(self, category=None, limit=100):
+    def __init__(self) -> None:
+        self.consumer = _ConsumerSub()
+        self.industrial = _IndustrialSub()
+
+
+class _ConsumerSub:
+    def browse_skus(self, category: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         return []
 
-    def get_sku(self, sku_id):
+    def get_sku(self, sku_id: int) -> dict[str, Any] | None:
         return None
 
-    def get_sellers_for_sku(self, sku_id):
+    def get_sellers_for_sku(self, sku_id: int) -> list[dict[str, Any]]:
         return []
 
-    def get_suppliers_for_sku(self, sku_id):
+    def get_skus_for_seller(self, seller_id: int) -> list[dict[str, Any]]:
         return []
 
-    def get_bom(self, sku_id):
+
+class _IndustrialSub:
+    def get_suppliers_for_sku(self, sku_id: int) -> list[dict[str, Any]]:
         return []
 
-    def get_skus_for_seller(self, seller_id):
+    def get_bom(self, sku_id: int) -> list[dict[str, Any]]:
         return []
 
-    def get_parts_for_supplier(self, supplier_id):
+    def get_parts_for_supplier(self, supplier_id: int) -> list[dict[str, Any]]:
         return []
 
 
@@ -57,7 +64,7 @@ def test_engine_injection():
 
     agents = [agent1, agent2, unsupported]
 
-    engine = TickEngine(agents=agents, catalog=catalog, peer_agents_config=peer_config)
+    TickEngine(agents=agents, catalog=catalog, peer_agents_config=peer_config)
 
     assert agent1.catalog is catalog
     assert agent1.peer_agents == peer_config
@@ -70,52 +77,24 @@ def test_engine_injection():
 
 def test_engine_no_injection():
     agent = MockAgent(1)
-    engine = TickEngine(agents=[agent])
+    TickEngine(agents=[agent])
 
     assert agent.catalog is None
     assert agent.peer_agents is None
 
 
-def test_engine_partial_injection():
+def test_engine_partial_injection_catalog_only():
     catalog = MockCatalog()
     agent = MockAgent(1)
 
-    engine = TickEngine(agents=[agent], catalog=catalog)
+    TickEngine(agents=[agent], catalog=catalog)
     assert agent.catalog is catalog
     assert agent.peer_agents is None
 
-    agent2 = MockAgent(2)
-    peer_config = {"seller": 1}
-    engine2 = TickEngine(agents=[agent2], peer_agents_config=peer_config)
-    assert agent2.catalog is None
-    assert agent2.peer_agents == peer_config
 
-    # Verify no error for unsupported agent
-    assert not hasattr(unsupported, "catalog")
-    assert not hasattr(unsupported, "peer_agents")
-
-
-def test_engine_no_injection():
-    # Verify backward compatibility (no arguments provided)
+def test_engine_partial_injection_peers_only():
     agent = MockAgent(1)
-    engine = TickEngine(agents=[agent])
-
+    peer_config = {"seller": 1}
+    TickEngine(agents=[agent], peer_agents_config=peer_config)
     assert agent.catalog is None
-    assert agent.peer_agents is None
-
-
-def test_engine_partial_injection():
-    catalog = MockCatalog()
-    agent = MockAgent(1)
-
-    # Only catalog
-    engine = TickEngine(agents=[agent], catalog=catalog)
-    assert agent.catalog is catalog
-    assert agent.peer_agents is None
-
-    # Only peer_agents_config
-    agent2 = MockAgent(2)
-    peer_config = {"seller": 1}
-    engine2 = TickEngine(agents=[agent2], peer_agents_config=peer_config)
-    assert agent2.catalog is None
-    assert agent2.peer_agents == peer_config
+    assert agent.peer_agents == peer_config

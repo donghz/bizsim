@@ -183,7 +183,7 @@ Max Concurrent: 4 (Wave 1)
 > Implementation + Verification = ONE Task. Never separate.
 > EVERY task MUST have: Recommended Agent Profile + Parallelization info + QA Scenarios.
 
-- [ ] 1. Create `bizsim/markets/` directory + `schema.py`
+ - [x] 1. Create `bizsim/markets/` directory + `schema.py`
 
   **What to do**:
   - Create directory `bizsim/markets/`

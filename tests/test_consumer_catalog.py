@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
 from bizsim.agents.consumer import ConsumerAgent
 from bizsim.domain import TenantContext
 from bizsim.events import QueryResult
@@ -25,8 +27,15 @@ def consumer_profile():
     return {"interest": {"Groceries": 1.0}, "price_sensitivity": 0.5, "urgency": {"Groceries": 0.9}}
 
 
+def _make_mock_catalog():
+    consumer = MagicMock()
+    catalog = MagicMock()
+    catalog.consumer = consumer
+    catalog.industrial = MagicMock()
+    return catalog
+
+
 def test_consumer_no_catalog_degradation(tenant_context, scheduling_config, consumer_profile):
-    """Verify consumer works without a catalog (legacy/fallback mode)."""
     agent = ConsumerAgent(1, tenant_context, scheduling_config, consumer_profile, catalog=None)
 
     events = agent.step(10)
@@ -39,18 +48,15 @@ def test_consumer_no_catalog_degradation(tenant_context, scheduling_config, cons
 
 
 def test_consumer_uses_catalog_browse(tenant_context, scheduling_config, consumer_profile):
-    """Verify consumer uses catalog.browse_skus to populate views."""
-    mock_catalog = MagicMock()
-    mock_catalog.browse_skus.return_value = [{"sku_id": 101, "category": "Groceries"}]
+    catalog = _make_mock_catalog()
+    catalog.consumer.browse_skus.return_value = [{"sku_id": 101, "category": "Groceries"}]
 
-    agent = ConsumerAgent(
-        1, tenant_context, scheduling_config, consumer_profile, catalog=mock_catalog
-    )
+    agent = ConsumerAgent(1, tenant_context, scheduling_config, consumer_profile, catalog=catalog)
     agent.rng.seed(42)
 
     events = agent.step(10)
 
-    mock_catalog.browse_skus.assert_called_with("Groceries", limit=3)
+    catalog.consumer.browse_skus.assert_called_with("Groceries", limit=3)
     query_events = [e for e in events if e.event_type == "query_request"]
     assert any(
         q.query_template == "product_details" and q.params["sku_id"] == 101
@@ -62,14 +68,11 @@ def test_consumer_uses_catalog_browse(tenant_context, scheduling_config, consume
 def test_consumer_uses_catalog_get_sku_for_price(
     tenant_context, scheduling_config, consumer_profile
 ):
-    """Verify consumer uses catalog.get_sku for base_price in purchase decision."""
-    mock_catalog = MagicMock()
-    mock_catalog.get_sku.return_value = {"sku_id": 101, "base_price": 200.0}
-    mock_catalog.get_sellers_for_sku.return_value = [{"seller_id": 99}]
+    catalog = _make_mock_catalog()
+    catalog.consumer.get_sku.return_value = {"sku_id": 101, "base_price": 200.0}
+    catalog.consumer.get_sellers_for_sku.return_value = [{"seller_id": 99}]
 
-    agent = ConsumerAgent(
-        1, tenant_context, scheduling_config, consumer_profile, catalog=mock_catalog
-    )
+    agent = ConsumerAgent(1, tenant_context, scheduling_config, consumer_profile, catalog=catalog)
     agent.rng.seed(42)
 
     query_id = "test-query"
@@ -89,21 +92,18 @@ def test_consumer_uses_catalog_get_sku_for_price(
 
     agent.step(12)
 
-    mock_catalog.get_sku.assert_called_with(101)
+    catalog.consumer.get_sku.assert_called_with(101)
     assert any(o["sku_id"] == 101 for o in agent.pending_orders.values())
 
 
 def test_consumer_uses_catalog_get_sellers_for_purchase(
     tenant_context, scheduling_config, consumer_profile
 ):
-    """Verify consumer uses catalog.get_sellers_for_sku to pick a seller."""
-    mock_catalog = MagicMock()
-    mock_catalog.get_sku.return_value = {"sku_id": 101, "base_price": 100.0}
-    mock_catalog.get_sellers_for_sku.return_value = [{"seller_id": 99}]
+    catalog = _make_mock_catalog()
+    catalog.consumer.get_sku.return_value = {"sku_id": 101, "base_price": 100.0}
+    catalog.consumer.get_sellers_for_sku.return_value = [{"seller_id": 99}]
 
-    agent = ConsumerAgent(
-        1, tenant_context, scheduling_config, consumer_profile, catalog=mock_catalog
-    )
+    agent = ConsumerAgent(1, tenant_context, scheduling_config, consumer_profile, catalog=catalog)
     agent.rng.seed(42)
 
     query_id = "test-query"
@@ -123,7 +123,7 @@ def test_consumer_uses_catalog_get_sellers_for_purchase(
 
     events = agent.step(12)
 
-    mock_catalog.get_sellers_for_sku.assert_called_with(101)
+    catalog.consumer.get_sellers_for_sku.assert_called_with(101)
 
     purchase_events = [e for e in events if e.event_type == "consumer_purchase_intent"]
     assert len(purchase_events) == 1
@@ -136,7 +136,6 @@ def test_consumer_uses_catalog_get_sellers_for_purchase(
 def test_consumer_cancel_order_no_seller_fallback(
     tenant_context, scheduling_config, consumer_profile
 ):
-    """Verify consumer does not use fallback seller_id 1 when cancelling unknown order."""
     agent = ConsumerAgent(1, tenant_context, scheduling_config, consumer_profile)
 
     events = agent._cancel_order("unknown_order", 100)

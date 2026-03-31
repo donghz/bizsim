@@ -1,9 +1,10 @@
-import pytest
-from uuid import uuid4
 from unittest.mock import MagicMock
+from uuid import uuid4
+
+import pytest
+
 from bizsim.agents.seller import SellerAgent
 from bizsim.domain import TenantContext
-from bizsim.product_catalog import ProductCatalog
 
 
 @pytest.fixture
@@ -126,8 +127,10 @@ def test_handle_evaluate_inventory(seller_agent):
 
 
 def test_on_inventory_levels_result(seller_agent):
-    mock_catalog = MagicMock(spec=ProductCatalog)
-    mock_catalog.get_suppliers_for_sku.return_value = [{"supplier_id": 2000, "is_primary": True}]
+    mock_catalog = MagicMock()
+    mock_catalog.industrial.get_suppliers_for_sku.return_value = [
+        {"supplier_id": 2000, "is_primary": True}
+    ]
     seller_agent.catalog = mock_catalog
 
     data = {

@@ -1,11 +1,13 @@
 import sqlite3
+
 import pytest
-from bizsim.product_system import (
+
+from bizsim.markets.schema import (
     create_tables,
-    seed_catalog,
-    lookup_sku,
     lookup_bom,
+    lookup_sku,
     lookup_sku_supplier_mapping,
+    seed_catalog,
 )
 
 

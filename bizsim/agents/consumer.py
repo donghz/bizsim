@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 if TYPE_CHECKING:
-    from bizsim.product_catalog import ProductCatalog
+    from bizsim.market import MarketFactory
 
 try:
     from typing_extensions import override
@@ -24,7 +24,7 @@ class ConsumerAgent(BaseAgent):
         profile: dict[str, Any],
         seed: int = 42,
         *,
-        catalog: "ProductCatalog | None" = None,
+        catalog: "MarketFactory | None" = None,
         peer_agents: dict[str, int] | None = None,
         **kwargs: Any,
     ):
@@ -72,7 +72,7 @@ class ConsumerAgent(BaseAgent):
         event = self._emitter.emit(event_type="consumer_browse", tick=tick, reads=read_patterns)
 
         if self.catalog:
-            skus = self.catalog.browse_skus(category, limit=3)
+            skus = self.catalog.consumer.browse_skus(category, limit=3)
             self._skus_to_view = [{"sku_id": s["sku_id"], "category": category} for s in skus]
         else:
             self._skus_to_view = []
@@ -126,7 +126,7 @@ class ConsumerAgent(BaseAgent):
 
         base_price = 100.0
         if self.catalog:
-            sku_data = self.catalog.get_sku(sku_id)
+            sku_data = self.catalog.consumer.get_sku(sku_id)
             if sku_data:
                 base_price = sku_data.get("base_price", 100.0)
 
@@ -156,7 +156,7 @@ class ConsumerAgent(BaseAgent):
 
         seller_id = self.rng.randint(1, 10)
         if self.catalog:
-            sellers = self.catalog.get_sellers_for_sku(sku_id)
+            sellers = self.catalog.consumer.get_sellers_for_sku(sku_id)
             if sellers:
                 seller_id = self.rng.choice([s["seller_id"] for s in sellers])
 
@@ -285,10 +285,13 @@ class ConsumerAgent(BaseAgent):
         cancel_probability = 0.5
 
         for order_info in orders:
-            if order_info.get("is_late") and order_info.get("status") == "requested":
-                if self.rng.random() < cancel_probability:
-                    order_request_id = order_info["order_request_id"]
-                    events.extend(self._cancel_order(order_request_id, tick))
+            if (
+                order_info.get("is_late")
+                and order_info.get("status") == "requested"
+                and self.rng.random() < cancel_probability
+            ):
+                order_request_id = order_info["order_request_id"]
+                events.extend(self._cancel_order(order_request_id, tick))
         return events
 
     def _cancel_order(self, order_request_id: str, tick: int) -> list[ActionEvent]:
