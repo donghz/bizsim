@@ -1,12 +1,13 @@
-import pytest
-import yaml
 from uuid import uuid4
-from bizsim.agents.base import BaseAgent, AgentProtocol
-from bizsim.agents.runner import run_agent_tick
+
+import pytest
+
 from bizsim.agents._sandbox import SandboxImportError
-from bizsim.domain import TenantContext
-from bizsim.events import QueryResult, QueryRequest
+from bizsim.agents.base import AgentProtocol, BaseAgent
+from bizsim.agents.runner import run_agent_tick
 from bizsim.channels import InterAgentMessage
+from bizsim.domain import TenantContext
+from bizsim.events import QueryResult
 
 
 @pytest.fixture
@@ -37,7 +38,7 @@ def test_scheduling_jitter_determinism(tenant_context, scheduling_config):
     agent2 = BaseAgent(1, "consumer", tenant_context, scheduling_config, seed=42)
     assert agent1._jitter_offsets == agent2._jitter_offsets
 
-    agent3 = BaseAgent(2, "consumer", tenant_context, scheduling_config, seed=42)
+    BaseAgent(2, "consumer", tenant_context, scheduling_config, seed=42)
     # Different agent_id should likely have different jitter if jitter > 0
     # but we just care it's deterministic per (seed, agent_id)
 
@@ -122,11 +123,10 @@ def test_pipeline_correlation_and_ttl(tenant_context, scheduling_config):
 
 
 def test_sandbox_blocks_imports():
-    from bizsim.agents.runner import run_agent_tick
 
     class EvilAgent(BaseAgent):
         def step(self, tick):
-            import sqlite3
+            import sqlite3  # noqa: F401
 
             return []
 

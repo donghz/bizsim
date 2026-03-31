@@ -1,9 +1,5 @@
 import sqlite3
-from typing import Any, Protocol
-
-
-class ProductSystem(Protocol):
-    pass
+from typing import Any
 
 
 def create_tables(conn: sqlite3.Connection) -> None:

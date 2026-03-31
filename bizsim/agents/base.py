@@ -3,7 +3,7 @@ from collections import deque
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from bizsim.product_catalog import ProductCatalog
+    from bizsim.market import MarketFactory
 from uuid import uuid4
 
 from bizsim.channels import InboxItem, InterAgentMessage
@@ -37,7 +37,7 @@ class BaseAgent:
         scheduling_config: dict[str, Any],
         seed: int = 42,
         *,
-        catalog: "ProductCatalog | None" = None,
+        catalog: "MarketFactory | None" = None,
         peer_agents: dict[str, int] | None = None,
     ):
         self.agent_id = agent_id

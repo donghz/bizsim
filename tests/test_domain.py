@@ -1,8 +1,10 @@
-import pytest
 from uuid import uuid4
-from bizsim.domain import TenantContext, ActionEvent, ReadPattern, WritePattern
-from bizsim.events import EventEmitter, QueryRequest, QueryResult
+
+import pytest
+
 from bizsim.channels import InterAgentMessage
+from bizsim.domain import ActionEvent, ReadPattern, TenantContext, WritePattern
+from bizsim.events import EventEmitter, QueryRequest, QueryResult
 
 
 def test_tenant_context_immutable():

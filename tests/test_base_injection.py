@@ -1,6 +1,7 @@
+import pytest
+
 from bizsim.agents.base import BaseAgent
 from bizsim.domain import TenantContext
-import pytest
 
 
 def test_base_agent_injection():

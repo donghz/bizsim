@@ -17,7 +17,15 @@ BizSim is a tick-based multi-agent market simulator with an event-driven archite
 - `bizsim/agents/`: Agent implementations (`consumer`, `seller`, `supplier`, `transport`, `government`).
 - `bizsim/agents/base.py`: `BaseAgent` and `AgentProtocol` defining the lifecycle.
 - `bizsim/agents/_sandbox.py`: Security layer blocking dangerous imports.
-- `bizsim/community/`: Social influence subsystem (Independent Cascade model).
+- `bizsim/markets/`: Market subsystem implementations (B2C and B2B).
+- `bizsim/markets/schema.py`: SQLite DDL, catalog seeding, and lookup helpers.
+- `bizsim/markets/consumer_market.py`: `SqliteConsumerMarket` — B2C operations (browse, SKU, sellers).
+- `bizsim/markets/industrial_market.py`: `SqliteIndustrialMarket` — B2B operations (suppliers, BOM, parts).
+- `bizsim/market.py`: Market facade — `ConsumerMarket`/`IndustrialMarket` Protocols + `MarketFactory`.
+- `bizsim/society/`: Society subsystem implementations.
+- `bizsim/society/community.py`: `CommunitySubsystem` — social influence (Independent Cascade model).
+- `bizsim/society/media.py`: Media subsystem (V2 placeholder).
+- `bizsim/social.py`: Society facade — re-exports `CommunitySubsystem`, `CommunityConfig`, etc.
 - `bizsim/engine.py`: `TickEngine` orchestrating the tick loop and event routing.
 - `bizsim/domain.py`: Core types including `TenantContext`, `ActionEvent`, and SQL keyword guards.
 - `bizsim/events.py`: `EventEmitter`, `QueryRequest`, and `QueryResult`.

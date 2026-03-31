@@ -1,12 +1,13 @@
+
 import pytest
-import uuid
-from bizsim.community.subsystem import CommunitySubsystem, CommunityConfig, SharePurchaseData
+
+from bizsim.society.community import CommunityConfig, CommunitySubsystem, SharePurchaseData
 
 
 class MockConsumer:
     def __init__(self, consumer_id):
         self.consumer_id = consumer_id
-        self.trend_multiplier = {}
+        self.trend_multiplier: dict[str, float] = {}
 
 
 def test_community_initialization():

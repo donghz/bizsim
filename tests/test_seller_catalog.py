@@ -1,15 +1,24 @@
-import pytest
-from uuid import uuid4
 from unittest.mock import MagicMock
+from uuid import uuid4
+
+import pytest
+
 from bizsim.agents.seller import SellerAgent
 from bizsim.domain import TenantContext
-from bizsim.product_catalog import ProductCatalog
+
+
+def _make_mock_catalog():
+    consumer = MagicMock()
+    industrial = MagicMock()
+    catalog = MagicMock()
+    catalog.consumer = consumer
+    catalog.industrial = industrial
+    return catalog
 
 
 @pytest.fixture
 def mock_catalog():
-    catalog = MagicMock(spec=ProductCatalog)
-    return catalog
+    return _make_mock_catalog()
 
 
 @pytest.fixture
@@ -88,7 +97,7 @@ def test_on_payment_missing_peers(seller_agent):
 
 
 def test_rule_based_pricing(seller_agent, mock_catalog):
-    mock_catalog.get_skus_for_seller.return_value = [
+    mock_catalog.consumer.get_skus_for_seller.return_value = [
         {"sku_id": 101, "price_floor": 8.0, "price_ceiling": 15.0, "base_price": 10.0},
         {"sku_id": 102, "price_floor": 5.0, "price_ceiling": 20.0, "base_price": 18.0},
     ]
@@ -108,7 +117,7 @@ def test_rule_based_pricing(seller_agent, mock_catalog):
 
 
 def test_pricing_bounds(seller_agent, mock_catalog):
-    mock_catalog.get_skus_for_seller.return_value = [
+    mock_catalog.consumer.get_skus_for_seller.return_value = [
         {"sku_id": 101, "price_floor": 10.0, "price_ceiling": 10.2, "base_price": 10.0},
     ]
 
@@ -121,7 +130,7 @@ def test_pricing_bounds(seller_agent, mock_catalog):
 def test_on_inventory_levels_supplier_lookup(seller_agent, mock_catalog):
     data = {"inventory": [{"sku_id": 101, "qty": 5}]}
 
-    mock_catalog.get_suppliers_for_sku.return_value = [
+    mock_catalog.industrial.get_suppliers_for_sku.return_value = [
         {"supplier_id": 2001, "is_primary": False},
         {"supplier_id": 2002, "is_primary": True},
     ]

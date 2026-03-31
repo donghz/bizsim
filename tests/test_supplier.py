@@ -1,8 +1,10 @@
 from uuid import uuid4
+
 import pytest
+
 from bizsim.agents.supplier import SupplierAgent
-from bizsim.domain import TenantContext
 from bizsim.channels import InterAgentMessage
+from bizsim.domain import TenantContext
 
 
 @pytest.fixture

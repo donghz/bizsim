@@ -1,9 +1,11 @@
-import pytest
 from uuid import uuid4
+
+import pytest
+
 from bizsim.agents.consumer import ConsumerAgent
+from bizsim.channels import InterAgentMessage
 from bizsim.domain import TenantContext
 from bizsim.events import QueryResult
-from bizsim.channels import InterAgentMessage
 
 
 @pytest.fixture
@@ -51,7 +53,7 @@ def test_consumer_purchase_pipeline(tenant_context, scheduling_config, consumer_
     agent.step(11)
     assert len(agent.pending_queries) > 0
     query_id = list(agent.pending_queries.keys())[0]
-    context = agent.pending_queries[query_id].context
+    _context = agent.pending_queries[query_id].context
 
     # Simulate QueryResult
     result = QueryResult(
