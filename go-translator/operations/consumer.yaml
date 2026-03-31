@@ -1,0 +1,48 @@
+domain: consumer
+operations:
+  - name: browse_catalog
+    mode: read
+    params: { category: string, limit: int }
+    sql: "SELECT sku_id, name, base_price FROM {tenant}.sku_catalog WHERE category = :category ORDER BY RANDOM() LIMIT :limit"
+
+  - name: check_reviews
+    mode: read
+    params: { sku_ids: list }
+    sql: "SELECT sku_id, avg(rating) as avg_rating, count(*) as review_count FROM {tenant}.reviews WHERE sku_id IN (:sku_ids) GROUP BY sku_id"
+
+  - name: insert_consumer_order
+    mode: write
+    params: { order_request_id: string, sku_id: int, qty: int, seller_id: int, offered_price: decimal, status: string }
+    sql: "INSERT INTO {tenant}.consumer_orders (order_request_id, sku_id, qty, seller_id, offered_price, status) VALUES (:order_request_id, :sku_id, :qty, :seller_id, :offered_price, :status)"
+
+  - name: update_consumer_order
+    mode: write
+    params: { order_request_id: string, status: string }
+    sql: "UPDATE {tenant}.consumer_orders SET status = :status WHERE order_request_id = :order_request_id"
+
+  - name: product_details
+    mode: query
+    params: { sku_id: int, seller_id: int }
+    sql: |
+      SELECT p.price as current_price, COALESCE(AVG(r.rating), 0) as avg_review, COUNT(r.id) as review_count
+      FROM {tenant}.inventory p
+      LEFT JOIN {tenant}.reviews r ON p.sku_id = r.sku_id
+      WHERE p.sku_id = :sku_id
+    reducer: single_row
+
+  - name: order_history
+    mode: query
+    params: { consumer_id: int, window_days: int }
+    sql: |
+      SELECT order_request_id, status, (created_tick < :current_tick - 100) as is_late
+      FROM {tenant}.consumer_orders
+      WHERE consumer_id = :consumer_id AND created_tick > :current_tick - (:window_days * 100)
+    reducer: list_with_count
+
+events:
+  - name: consumer_browse
+    requires: [browse_catalog, check_reviews]
+  - name: consumer_purchase_intent
+    requires: [insert_consumer_order]
+  - name: consumer_order_status_update
+    requires: [update_consumer_order]

@@ -1,0 +1,27 @@
+domain: government
+operations:
+  - name: insert_gov_record
+    mode: write
+    params: { entity_type: string, entity_id: int, report_type: string, metrics_json: string, tick: int }
+    sql: "INSERT INTO {tenant}.gov_reports (entity_type, entity_id, report_type, metrics, tick) VALUES (:entity_type, :entity_id, :report_type, :metrics_json, :tick)"
+
+  - name: insert_statistics
+    mode: write
+    params: { period: string, gdp: decimal, transaction_volume: int, avg_price_index: float, active_sellers: int, active_consumers: int, tick: int }
+    sql: "INSERT INTO {tenant}.gov_stats (period, gdp, tx_volume, price_index, active_sellers, active_consumers, tick) VALUES (:period, :gdp, :transaction_volume, :avg_price_index, :active_sellers, :active_consumers, :tick)"
+
+  - name: gov_economic_indicators
+    mode: query
+    params: { period_ticks: int }
+    sql: |
+      SELECT SUM(price * qty) as gdp, COUNT(*) as transaction_volume, AVG(price) as avg_price_index,
+             (SELECT COUNT(DISTINCT seller_id) FROM {tenant}.store_orders WHERE created_tick > :current_tick - :period_ticks) as active_entities
+      FROM {tenant}.store_orders
+      WHERE created_tick > :current_tick - :period_ticks AND status = 'accepted'
+    reducer: single_row
+
+events:
+  - name: gov_record_insert
+    requires: [insert_gov_record]
+  - name: gov_statistics_insert
+    requires: [insert_statistics]

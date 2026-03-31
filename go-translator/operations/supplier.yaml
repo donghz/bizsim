@@ -1,0 +1,38 @@
+domain: supplier
+operations:
+  - name: insert_purchase_order
+    mode: write
+    params: { restock_order_id: string, sku_id: int, qty: int, store_id: int, status: string }
+    sql: "INSERT INTO {tenant}.purchase_orders (restock_order_id, sku_id, qty, store_id, status) VALUES (:restock_order_id, :sku_id, :qty, :store_id, :status)"
+
+  - name: update_purchase_order
+    mode: write
+    params: { restock_order_id: string, status: string }
+    sql: "UPDATE {tenant}.purchase_orders SET status = :status WHERE restock_order_id = :restock_order_id"
+
+  - name: select_capacity
+    mode: read
+    params: { supplier_id: int }
+    sql: "SELECT current_capacity FROM {tenant}.suppliers WHERE supplier_id = :supplier_id"
+
+  - name: update_supplier_capacity
+    mode: write
+    params: { supplier_id: int, produced_qty: int, current_capacity: int }
+    sql: "UPDATE {tenant}.suppliers SET current_capacity = :current_capacity WHERE supplier_id = :supplier_id"
+
+  - name: fulfillment_overdue
+    mode: query
+    params: { supplier_id: int }
+    sql: |
+      SELECT count(*) as overdue_count, COALESCE(MAX(:current_tick - created_tick), 0) as worst_delay_ticks
+      FROM {tenant}.purchase_orders
+      WHERE supplier_id = :supplier_id AND status = 'fulfilled' AND created_tick < :current_tick - 200
+    reducer: single_row
+
+events:
+  - name: supplier_restock_fulfilled
+    requires: [insert_purchase_order]
+  - name: supplier_restock_delivered
+    requires: [update_purchase_order]
+  - name: supplier_production_update
+    requires: [select_capacity, update_supplier_capacity]

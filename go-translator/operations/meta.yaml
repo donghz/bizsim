@@ -1,0 +1,10 @@
+domain: meta
+operations:
+  - name: health_check
+    mode: read
+    params: {}
+    sql: "SELECT 1"
+
+events:
+  - name: system_init
+    requires: [health_check]
