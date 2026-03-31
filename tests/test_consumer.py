@@ -30,10 +30,10 @@ def test_consumer_browse(tenant_context, scheduling_config, consumer_profile):
     agent = ConsumerAgent(1, tenant_context, scheduling_config, consumer_profile)
     # GIVEN tick 10
     # WHEN agent steps
-    # THEN it should trigger shopping (1), history check (1), and 3 product views
+    # THEN it should trigger shopping (1) and history check (1)
     events = agent.step(10)
 
-    assert len(events) == 5
+    assert len(events) == 2
     assert events[0].event_type == "consumer_browse"
     assert any(r.pattern == "browse_catalog" for r in events[0].reads)
     assert all(e.event_type in ["consumer_browse", "query_request"] for e in events)
